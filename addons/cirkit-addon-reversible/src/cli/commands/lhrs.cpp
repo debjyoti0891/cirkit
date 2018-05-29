@@ -49,6 +49,7 @@ lhrs_command::lhrs_command( const environment::ptr& env )
   /* General options */
   add_option( "--cut_size,-k", cut_size, "cut size", true );
   add_option( "--mapping_strategy,-m", mapping_strategy, "mapping strategy: direct (0): direct; min_db (1): LUT-based min DB; best_fit (2): LUT-based best fit; pick_best (3): LUT-based pick best", true );
+  add_option( "--assign_strategy,-a", assignment_strategy, "assignment strategy: defer (0): one time (un)compute; rev_pebble (1): reversible pebble game based assignment", true );
   add_option( "--additional_ancilla", params.additional_ancilla, "number of additional ancilla to add to circuit", true );
   add_flag( "--progress,-p", params.progress, "show progress" );
   add_flag( "--onlylines", params.onlylines, "do not create gates (useful for qubit estimation)" );
@@ -63,6 +64,8 @@ lhrs_command::lhrs_command( const environment::ptr& env )
   add_option( "--area_iters", params.map_luts_params.area_iters, "number of exact area recovery iterations", true )->group( "LUT decomposition" );
   add_option( "--flow_iters", params.map_luts_params.flow_iters, "number of area flow recovery iterations", true )->group( "LUT decomposition" );
   add_option( "--class_method", params.map_precomp_params.class_method, "classification method\n0: spectral classification\n1: affine classificiation", true )->group( "LUT decomposition" );
+
+
 
   add_option( "--dumpfile", params.map_esop_params.dumpfile, "name of existing directory to dump AIG and ESOP files for exorcism minimization" )->group( "Debug" );
   add_flag( "--nocollapse", params.map_esop_params.nocollapse, "do not collapse LUTs (useful with dumpfile to only write AIGs)" )->group( "Debug" );
@@ -85,10 +88,11 @@ void lhrs_command::execute()
 {
   auto& circuits = env->store<circuit>();
   extend_if_new( circuits );
-
   from_string( params.mapping_strategy, mapping_strategy );
+  from_string( params.assignment_strategy, assignment_strategy );
   from_string( params.map_esop_params.cover_method, cover_method );
   from_string( params.map_esop_params.script, script );
+  std::cout << " params:" << assignment_strategy << "|," << params.assignment_strategy<< "\n";
 
   params.sync();
 

@@ -94,6 +94,39 @@ std::ostream& operator<<( std::ostream& out, const lhrs_mapping_strategy& mappin
   return out;
 }
 
+std::istream& operator>>( std::istream& in, qubit_assignment_strategy& assignment_strategy )
+{
+  std::string token;
+  in >> token;
+  if ( token == "defer" || token == "0" )
+  {
+    assignment_strategy = qubit_assignment_strategy::defer;
+  }
+  else if ( token == "rev_pebble" || token == "1" )
+  {
+    assignment_strategy = qubit_assignment_strategy::rev_pebble;
+  }
+  else
+  {
+    in.setstate( std::ios_base::failbit );
+  }
+  return in;
+}
+
+std::ostream& operator<<( std::ostream& out, const qubit_assignment_strategy& assignment_strategy )
+{
+  switch ( assignment_strategy )
+  {
+  case qubit_assignment_strategy::defer:
+    return out << "defer";
+  case qubit_assignment_strategy::rev_pebble:
+    return out << "rev_pebble";
+  }
+
+  return out;
+}
+
+
 }
 
 }

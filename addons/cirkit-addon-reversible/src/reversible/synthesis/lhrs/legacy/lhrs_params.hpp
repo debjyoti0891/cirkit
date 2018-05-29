@@ -64,6 +64,16 @@ enum class lhrs_mapping_strategy
 std::istream& operator>>( std::istream& in, lhrs_mapping_strategy& mapping_strategy );
 std::ostream& operator<<( std::ostream& out, const lhrs_mapping_strategy& mapping_strategy );
 
+enum class qubit_assignment_strategy
+{
+  defer,
+  rev_pebble
+};
+
+std::istream& operator>>( std::istream& in, qubit_assignment_strategy& assignment_strategy );
+std::ostream& operator<<( std::ostream& out, const qubit_assignment_strategy& assignment_strategy );
+
+
 struct lhrs_params
 {
   lhrs_params()
@@ -76,6 +86,9 @@ struct lhrs_params
   bool                   onlylines          = false;                                       /* do not compute gates */
 
   lhrs_mapping_strategy  mapping_strategy   = lhrs_mapping_strategy::direct;               /* mapping strategy */
+
+  qubit_assignment_strategy assignment_strategy = qubit_assignment_strategy::defer; 
+
   unsigned               max_func_size      = 0u;                                          /* max function size for DB lookup, 0u: automatic based on class_method */
 
   stg_map_esop_params         map_esop_params;
@@ -104,6 +117,8 @@ struct lhrs_params
       map_luts_params.strategy = stg_map_luts_params::mapping_strategy::bestfit;
       break;
     }
+
+
   }
 };
 

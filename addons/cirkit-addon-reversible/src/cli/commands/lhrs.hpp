@@ -69,6 +69,7 @@ private:
 
   /* to be merged */
   std::string mapping_strategy;
+  std::string assignment_strategy;
   std::string cover_method;
   std::string script;
 

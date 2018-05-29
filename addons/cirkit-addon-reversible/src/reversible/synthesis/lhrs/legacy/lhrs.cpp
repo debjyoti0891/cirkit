@@ -434,6 +434,165 @@ private:
   stg_partners partners;
 };
 
+
+class rev_pebble_heuristic : public lut_order_heuristic
+{
+public:
+  rev_pebble_heuristic( const gia_graph& gia, unsigned additional_ancilla )
+    : lut_order_heuristic( gia, additional_ancilla )
+  {
+    partners = find_stg_partners( gia );
+  }
+
+public:
+  virtual unsigned compute_steps()
+  {
+    set_mem_point();
+    set_dry_run( true );
+    const auto next_free = compute_steps_int();
+    set_dry_run( false );
+    return_to_mem_point();
+
+    return compute_steps_int( next_free + additional_ancilla() );
+  }
+
+private:
+  unsigned compute_steps_int( unsigned add_frees = 0u )
+  {
+    gia().init_lut_refs();
+
+    add_default_input_steps();
+
+    if ( add_frees )
+    {
+      add_constants( add_frees );
+    }
+
+    adjust_indegrees();
+
+    gia().foreach_lut( [this]( int index ) {
+        const auto is_partners = partners.has_partners( index );
+
+        if ( !is_partners || partners.partners( index ).front() == index )
+        {
+          const auto target = request_constant();
+          (*this)[index] = target;
+
+          if ( is_partners )
+          {
+            for ( auto p : partners.partners( index ) )
+            {
+              add_step( p, target, lut_order_heuristic::compute );
+            }
+          }
+          else
+          {
+            add_step( index, target, lut_order_heuristic::compute );
+          }
+
+          /* start uncomputing */
+          if ( gia().lut_ref_num( index ) == 0 )
+          {
+            visited.clear();
+            decrease_children_indegrees( index );
+            uncompute_children( index );
+          }
+        }
+      } );
+
+    add_default_output_steps();
+
+    return next_free();
+  }
+
+  void adjust_indegrees()
+  {
+    gia().foreach_output( [this]( int index, int e ) {
+        const auto driver = abc::Gia_ObjFaninId0p( gia(), abc::Gia_ManCo( gia(), e ) );
+        output_luts.push_back( driver );
+        gia().lut_ref_dec( driver );
+      } );
+  }
+
+  void decrease_children_indegrees( int index )
+  {
+    gia().foreach_lut_fanin( index, [this]( int fanin ) {
+        if ( gia().is_lut( fanin ) )
+        {
+          gia().lut_ref_dec( fanin );
+        }
+      } );
+  }
+
+  void uncompute_children( int index )
+  {
+    gia().foreach_lut_fanin( index, [this]( int fanin ) {
+        if ( gia().is_lut( fanin ) && gia().lut_ref_num( fanin ) == 0 )
+        {
+          uncompute_node( fanin );
+        }
+      } );
+  }
+
+  void uncompute_node( int index )
+  {
+    if ( is_visited( index ) ) return;
+    assert( gia().lut_ref_num( index ) == 0 );
+
+    if ( !is_output_lut( index ) )
+    {
+      const auto target = (*this)[index];
+
+      const auto is_partners = partners.has_partners( index );
+      if ( !is_partners || partners.partners( index ).front() == index )
+      {
+        if ( is_partners )
+        {
+          for ( auto p : partners.partners( index ) )
+          {
+            add_step( p, target, lut_order_heuristic::uncompute );
+          }
+        }
+        else
+        {
+          add_step( index, target, lut_order_heuristic::uncompute );
+        }
+        free_constant( target );
+      }
+    }
+
+    visited.push_back( index );
+
+    decrease_children_indegrees( index );
+    uncompute_children( index );
+  }
+
+  void print_lut_refs()
+  {
+    std::cout << "[i] LUT refs:";
+    gia().foreach_lut( [this]( int index ) {
+        std::cout << boost::format( "  %d:%d" ) % index % gia().lut_ref_num( index );
+      });
+    std::cout << std::endl;
+  }
+
+private:
+  inline bool is_visited( int index ) const
+  {
+    return std::find( visited.begin(), visited.end(), index ) != visited.end();
+  }
+
+  inline bool is_output_lut( int index ) const
+  {
+    return std::find( output_luts.begin(), output_luts.end(), index ) != output_luts.end();
+  }
+
+  std::vector<int> visited;
+  std::vector<int> output_luts;
+
+  stg_partners partners;
+};
+
 /******************************************************************************
  * Manager                                                                    *
  ******************************************************************************/
@@ -446,9 +605,17 @@ public:
       gia( gia ),
       params( params ),
       stats( stats ),
-      order_heuristic( std::make_shared<defer_lut_order_heuristic>( gia, params.additional_ancilla ) ),
       pbar( "[i] step %5d/%5d   dd = %5d   ld = %5d   cvr = %6.2f   esop = %6.2f   map = %6.2f   clsfy = %6.2f   total = %6.2f", params.progress )
   {
+      if( params.assignment_strategy == cirkit::legacy::qubit_assignment_strategy::defer ) 
+      {
+        order_heuristic = std::make_shared<defer_lut_order_heuristic>( gia, params.additional_ancilla ) ;
+      }
+      else if ( params.assignment_strategy == cirkit::legacy::qubit_assignment_strategy::rev_pebble )
+      {
+        order_heuristic = std::make_shared<rev_pebble_heuristic>( gia, params.additional_ancilla );
+      }
+
   }
 
   bool run()

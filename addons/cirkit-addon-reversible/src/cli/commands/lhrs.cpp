@@ -39,7 +39,6 @@
 #include <classical/xmg/xmg_cover.hpp>
 #include <cli/reversible_stores.hpp>
 #include <reversible/synthesis/lhrs/legacy/lhrs.hpp>
-
 namespace cirkit
 {
 
@@ -103,6 +102,7 @@ void lhrs_command::execute()
   const auto gia = gia_graph( aig() );
 
   const auto lut = gia.if_mapping( make_settings_from( std::make_pair( "lut_size", cut_size ), "area_mapping", std::make_pair( "area_iters", area_iters_init ), std::make_pair( "flow_iters", flow_iters_init ), std::make_pair( "rounds", 7u ), std::make_pair( "rounds_ela", 7u ) ) );
+
   legacy::lut_based_synthesis( circuits.current(), /*xmg_from_gia( lut )*/ lut, params, *stats );
 
   // auto& xmg = env->store<xmg_graph>().current();

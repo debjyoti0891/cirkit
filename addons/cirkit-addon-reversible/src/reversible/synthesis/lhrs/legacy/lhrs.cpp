@@ -56,6 +56,7 @@
 #include <reversible/functions/circuit_from_string.hpp>
 #include <reversible/functions/clear_circuit.hpp>
 #include <reversible/io/print_circuit.hpp>
+#include <reversible/synthesis/lhrs/legacy/ordering_lut_graph.hpp>
 #include <reversible/synthesis/lhrs/legacy/stg_map_esop.hpp>
 #include <reversible/synthesis/lhrs/legacy/stg_map_precomp.hpp>
 #include <reversible/synthesis/lhrs/legacy/stg_partners.hpp>
@@ -182,6 +183,7 @@ protected:
 
   void add_step( int index, unsigned target, step_type type )
   {
+    std::cout << _steps.capacity() << " " << _steps.size() << " " << type << "\n";
     if ( !_dry_run )
     {
       if(type == step_type::compute || type == step_type :: uncompute)
@@ -194,7 +196,10 @@ protected:
       }
     }
   }
-
+  void allocate_steps(unsigned n)
+  {
+      _steps.reserve(n);
+  }
   unsigned request_constant()
   {
     if ( !_constants.empty() )
@@ -447,13 +452,260 @@ public:
 public:
   virtual unsigned compute_steps()
   {
+    /* pebble game begins */
     set_mem_point();
-    set_dry_run( true );
-    const auto next_free = compute_steps_int();
     set_dry_run( false );
-    return_to_mem_point();
+    gia().init_lut_refs();
+    std::cout << "Copying gia to Boost GML\n";
+    std::vector<std::pair<int,int>> edges;
+    gia().foreach_output( [this]( int index, int e ) {                                                                                              
+        auto const driver = abc::Gia_ObjFaninId0p( gia(), abc::Gia_ManCo( gia(), e ) );
+        if(gia().is_lut(driver) && driver != 0)
+	    	output_LUT_set.insert( driver );
+        // gia().lut_ref_dec( driver );
+        // Remove after testing
+        #ifdef ORDERING_DEBUG
 
-    return compute_steps_int( next_free + additional_ancilla() );
+        std::cout <<"X" << index << ","<< e << " driver:" << driver << "[" ;
+        std::cout << gia().is_lut(driver) << "]\n";
+        gia().foreach_lut_fanin( driver, [driver,this]( int fanin ) {
+            std::cout <<  (int) driver << "<-" << fanin;
+            if ( gia().is_lut( fanin ) )
+            {
+                gia().lut_ref_dec( fanin );
+                std::cout <<"LUT";
+            }
+            else
+                std::cout << "PI";
+            std::cout << "\n";
+        } );
+
+        #endif
+    } );
+
+       std::set <int> addedLut;
+       std::set <int> connectedLut; 
+       std::vector <int> toProcessLut;
+
+       for(auto lut:output_LUT_set)
+       {
+           toProcessLut.push_back(lut);
+       }
+
+       std::vector<int> zeroFanInLut;
+       bool isZeroPresent = false;
+       while(!toProcessLut.empty())
+       {
+           int lut = toProcessLut.back();
+           toProcessLut.pop_back();
+          
+    
+           if(addedLut.find(lut) != addedLut.end())
+               continue;
+           addedLut.insert(lut);  
+           bool zeroFanIn = true; 
+           if(lut == 0){
+               std::cout << "Node zero found \n";
+               isZeroPresent = true;
+               // continue;
+           } 
+
+           gia().foreach_lut_fanin( lut, [&toProcessLut,&connectedLut, &edges,&zeroFanIn, addedLut,lut,this]( int fanin ) {
+               
+		        if(gia().is_lut(fanin) && fanin != 0)                
+                {
+                    edges.push_back(std::make_pair(fanin,lut));
+                    #ifdef ORDERING_DEBUG
+                    std::cout <<  (int) lut << "<-" << fanin << "[LUT]\n";
+                    #endif
+               
+                    zeroFanIn = false;
+                    connectedLut.insert(fanin);
+                    connectedLut.insert(lut);
+                
+                    if (addedLut.find(fanin) == addedLut.end()) 
+               	    { 
+                        toProcessLut.push_back(fanin);
+                    }
+                }
+                else
+                {
+                     #ifdef ORDERING_DEBUG
+                    std::cout <<  (int) lut << "<-" << fanin << "[PI]\n";
+                    #endif
+               
+
+                }
+            } );
+            
+       }
+    for(auto v: addedLut)
+    {
+        if(connectedLut.find(v) == connectedLut.end())
+            zeroFanInLut.push_back(v);
+    }
+    std::vector<std::pair<int,int>> orderedEdges;
+    std::map<int,int> vertexMap;
+    int vertexLabel = 0;
+    int source, dest;
+       std::cout << "\n";
+       for(auto edge : edges)
+       {
+           source = (int) edge.first;
+           dest = (int) edge.second;
+                  if(vertexMap.find(source) == vertexMap.end())
+           {
+               
+               vertexMap[source] = vertexLabel;
+               //std::cout << vertexLabel << "new assigned\n";
+               vertexLabel++;
+           }
+           if(vertexMap.find(dest) == vertexMap.end())
+           {
+               vertexMap[dest] = vertexLabel;
+               //std::cout << vertexLabel << "new assigned\n";
+               vertexLabel++;
+           }
+           source = vertexMap[source];
+           dest = vertexMap[dest];
+           #ifdef ORDERING_DEBUG
+
+           std::cout << edge.first << "[" << source << "] ->";
+           std::cout << edge.second << "[" << dest << "]\n";
+           #endif
+
+    
+           orderedEdges.push_back(std::make_pair(source,dest));
+       }
+
+    std::map<int,int> newVertexMap;
+    //std::cout << "vertex map:\n";
+    for(auto edge: vertexMap)
+    {
+        #ifdef ORDERING_DEBUG 
+        std::cout << "vmap_f" << edge.first << "->" << edge.second << "\n";
+        #endif 
+        newVertexMap[edge.second] = edge.first; 
+
+    }  
+
+    std::vector<int> bglOutput;
+    for(auto out: output_LUT_set)
+    {
+        if(vertexMap.find(out) == vertexMap.end())
+        {
+            vertexMap[out] = vertexLabel;
+            std::cout << "new output vertex not present in BGL" << out << "\n"; 
+            vertexLabel++;
+        }
+        else
+            bglOutput.push_back(vertexMap[out]);
+    }
+    
+    LutGraph lG(orderedEdges,bglOutput, output_LUT_set.size());
+    unsigned int reqQbits = 0;
+    int available=0; 
+    int loneLutQubits = 0;
+    std::vector<std::tuple<int,int,int,int> > steps;
+    if(!edges.empty())
+    {
+        lG.pebble();
+        reqQbits = lG.getQubitCount();    
+        steps = lG.getPebbleSteps();
+        available = lG.getQubitsFree(); //starting qubits - no. of outputs
+    }
+
+    std::set<int> lutMapped;
+    for(auto const step : steps)
+    {
+        int index = newVertexMap[std::get<1>(step)];
+        lutMapped.insert(index); 
+    }
+    loneLutQubits = zeroFanInLut.size();
+    
+    //std::cout << "lone : " << loneLutQubits << "\n";
+    loneLutQubits = available > loneLutQubits ? 0: loneLutQubits - available;
+    std::ofstream debugStats ("debugStats.txt", std::ios::out|std::ios::app);
+    debugStats << "r:" << reqQbits << " l:" << loneLutQubits;
+    debugStats << " a:" << additional_ancilla() << "\n";
+    debugStats.close();
+    // NOTE : code for adding steps 
+  
+    add_default_input_steps();
+    //  add the additional lines needed 
+    add_constants(reqQbits+loneLutQubits+additional_ancilla());
+    
+    std::map<int,int> targetMap;
+    std::vector<int> my_qubit_their_qubit_map;
+    my_qubit_their_qubit_map.resize(reqQbits);
+
+    int max_qubit = -1;
+    for(auto lut : zeroFanInLut)
+    {
+       int target =  request_constant();
+       max_qubit = max_qubit < target ? target : max_qubit;
+
+        (*this)[lut] = target;
+        add_step(lut, target, lut_order_heuristic::compute);   
+        targetMap[lut] = target;
+        #ifdef ORDERING_DEBUG
+            std::cout << "zero fan in steps" << lut << "\n";
+        #endif
+    }
+
+    for(uint i=1;i<= my_qubit_their_qubit_map.size();i++)
+     {
+     	my_qubit_their_qubit_map[i] = request_constant(); //my ith qbit maps to req_const()
+     	max_qubit = max_qubit < my_qubit_their_qubit_map[i] ? my_qubit_their_qubit_map[i] : max_qubit;
+        #ifdef ORDERING_DEBUG 
+        std::cout << "virtual q:" << i << " mapped:" << my_qubit_their_qubit_map[i] << " "; 
+        #endif 
+     }
+    allocate_steps(steps.size());
+    for(auto const step : steps)
+    {
+        int index = newVertexMap[std::get<1>(step)];
+        if(index == 0)
+        {
+            std::cout << " Constant node 0 : not added to steps\n";
+            continue;
+        }
+        
+        #ifdef ORDERING_DEBUG
+            std::cout << "step : " << std::get<1>(step) << ":";
+            std::cout << index  << "->" << std::get<2>(step) << " " << std::get<0>(step) << "\n " ;
+        #endif 
+
+        if(std::get<0>(step) == 0)
+        {
+            int target =  my_qubit_their_qubit_map[std::get<2>(step)];//target is a new qubit
+            (*this)[index] = target;
+            add_step(index, target, lut_order_heuristic::compute);   
+            targetMap[index] = target;         
+        }
+        else if(std::get<0>(step) == 1)
+        {
+            int target = targetMap[index];
+            add_step( index, target, lut_order_heuristic::uncompute );
+            free_constant( target );
+        }
+        else
+        {
+        	std::cout<<"INVALID STEP TYPE\n";
+        	exit(1);
+        }
+    }
+    std::cout<<"MAX_QUBITS REQD"<<max_qubit+1<<"\n";
+    
+    
+    add_default_output_steps();
+    std::cout << "Completed adding steps\n";
+   
+    int neededLines = next_free();
+    return_to_mem_point();
+    //complete_add_step();
+    return  neededLines; 
+    
   }
 
 private:
@@ -589,7 +841,7 @@ private:
 
   std::vector<int> visited;
   std::vector<int> output_luts;
-
+  std::set<int> output_LUT_set;
   stg_partners partners;
 };
 

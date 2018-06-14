@@ -155,7 +155,10 @@ public:
   {
     return _constants.size();
   }
-
+  void free_steps()
+  {
+      std::vector<step>().swap(_steps);
+  }
 protected:
   void add_default_input_steps()
   {
@@ -196,10 +199,7 @@ protected:
       }
     }
   }
-  void allocate_steps(unsigned n)
-  {
-      _steps.reserve(n);
-  }
+ 
   unsigned request_constant()
   {
     if ( !_constants.empty() )
@@ -601,20 +601,20 @@ public:
         else
             bglOutput.push_back(vertexMap[out]);
     }
-    
-    LutGraph lG(orderedEdges,bglOutput, output_LUT_set.size());
-    unsigned int reqQbits = 0;
+      unsigned int reqQbits = 0;
     int available=0; 
     int loneLutQubits = 0;
     std::vector<std::tuple<int,int,int,int> > steps;
+     LutGraph *lG;
+    lG = new LutGraph(orderedEdges,bglOutput, output_LUT_set.size());
+ 
     if(!edges.empty())
     {
-        lG.pebble();
-        reqQbits = lG.getQubitCount();    
-        steps = lG.getPebbleSteps();
-        available = lG.getQubitsFree(); //starting qubits - no. of outputs
+        lG->pebble();
+        reqQbits = lG->getQubitCount();    
+        available = lG->getQubitsFree(); //starting qubits - no. of outputs
     }
-
+    //delete lG;
     std::set<int> lutMapped;
     for(auto const step : steps)
     {
@@ -636,8 +636,7 @@ public:
     add_constants(reqQbits+loneLutQubits+additional_ancilla());
     
     std::map<int,int> targetMap;
-    std::vector<int> my_qubit_their_qubit_map;
-    my_qubit_their_qubit_map.resize(reqQbits);
+    std::map<int,int> my_qubit_their_qubit_map;
 
     int max_qubit = -1;
     for(auto lut : zeroFanInLut)
@@ -652,7 +651,6 @@ public:
             std::cout << "zero fan in steps" << lut << "\n";
         #endif
     }
-
     for(uint i=1;i<= my_qubit_their_qubit_map.size();i++)
      {
      	my_qubit_their_qubit_map[i] = request_constant(); //my ith qbit maps to req_const()
@@ -661,20 +659,21 @@ public:
         std::cout << "virtual q:" << i << " mapped:" << my_qubit_their_qubit_map[i] << " "; 
         #endif 
      }
-    allocate_steps(steps.size());
-    for(auto const step : steps)
+  /*  allocate_steps(steps.size()); */
+    for(auto const step : lG->getPebbleSteps())
     {
         int index = newVertexMap[std::get<1>(step)];
+        
         if(index == 0)
         {
             std::cout << " Constant node 0 : not added to steps\n";
             continue;
         }
         
-        #ifdef ORDERING_DEBUG
+        //#ifdef ORDERING_DEBUG
             std::cout << "step : " << std::get<1>(step) << ":";
             std::cout << index  << "->" << std::get<2>(step) << " " << std::get<0>(step) << "\n " ;
-        #endif 
+        //#endif 
 
         if(std::get<0>(step) == 0)
         {
@@ -695,8 +694,8 @@ public:
         	exit(1);
         }
     }
+    delete lG;
     std::cout<<"MAX_QUBITS REQD"<<max_qubit+1<<"\n";
-    
     
     add_default_output_steps();
     std::cout << "Completed adding steps\n";
@@ -957,11 +956,12 @@ public:
       }
     }
 
+    std::cout << "completed run()\n";
     circ.set_inputs( inputs );
     circ.set_outputs( outputs );
     circ.set_constants( constants );
     circ.set_garbage( garbage );
-
+    //order_heuristic->free_steps();
     return true;
   }
 

@@ -201,7 +201,7 @@ class LutGraph
         LutGraph(std::vector<std::pair<int,int>> edges, std::vector<int> output);
         LutGraph(std::vector<std::pair<int,int>> edges, std::vector<int> output, int po_count);
         LutGraph(Graph g); // A boost graph
-        ~LutGraph();
+        //~LutGraph();
         void determineMFFC(); 
         void pebble();
         unsigned int scheduleGraph(int order, bool crit );

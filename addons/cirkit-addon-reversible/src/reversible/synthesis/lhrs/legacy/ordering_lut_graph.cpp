@@ -75,11 +75,12 @@ LutGraph::LutGraph()
 {
 	
 }
+/*
 LutGraph::~LutGraph()
 {
     pebble_steps.clear();
     pebble_steps.shrink_to_fit();
-}
+} */
 // void LutGraph::topoOrdering(int v)
 // {
 //     //std::cout << "ordering : " << v <<":" << lutGraph[v].topoLabel << "\n";

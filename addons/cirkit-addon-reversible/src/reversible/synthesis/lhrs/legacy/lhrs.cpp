@@ -604,8 +604,7 @@ public:
       unsigned int reqQbits = 0;
     int available=0; 
     int loneLutQubits = 0;
-    std::vector<std::tuple<int,int,int,int> > steps;
-     LutGraph *lG;
+    LutGraph *lG;
     lG = new LutGraph(orderedEdges,bglOutput, output_LUT_set.size());
  
     if(!edges.empty())
@@ -616,7 +615,7 @@ public:
     }
     //delete lG;
     std::set<int> lutMapped;
-    for(auto const step : steps)
+    for(auto const step : lG->getPebbleSteps())
     {
         int index = newVertexMap[std::get<1>(step)];
         lutMapped.insert(index); 
@@ -651,7 +650,7 @@ public:
             std::cout << "zero fan in steps" << lut << "\n";
         #endif
     }
-    for(uint i=1;i<= my_qubit_their_qubit_map.size();i++)
+    for(uint i=1;i<= reqQbits;i++)
      {
      	my_qubit_their_qubit_map[i] = request_constant(); //my ith qbit maps to req_const()
      	max_qubit = max_qubit < my_qubit_their_qubit_map[i] ? my_qubit_their_qubit_map[i] : max_qubit;
@@ -741,7 +740,6 @@ private:
             add_step( index, target, lut_order_heuristic::compute );
           }
 
-          /* start uncomputing */
           if ( gia().lut_ref_num( index ) == 0 )
           {
             visited.clear();

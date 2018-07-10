@@ -126,7 +126,7 @@ void lhrs_command::execute()
         debug_lb = std::max<unsigned>( debug_lb, abc::Gia_LutTFISize( lut, driver ) );
       } );
   }
-
+  std::cout <<"qubit stats:"<< stats->qubits;
   print_runtime( stats->runtime );
 }
 
@@ -154,7 +154,10 @@ nlohmann::json lhrs_command::log() const
       {"cover_runtime", stats->map_esop_stats.cover_runtime},
       {"class_counter", stats->map_precomp_stats.class_counter},
       {"class_runtime", stats->map_precomp_stats.class_runtime},
-      {"mapping_runtime", stats->map_luts_stats.mapping_runtime}
+      {"mapping_runtime", stats->map_luts_stats.mapping_runtime},
+      {"qubits",stats->qubits},
+      {"lone_qubits",stats->lone_qubits},
+      {"stg_count", stats->step_count}
     });
 
   if ( is_set( "bounds" ) )

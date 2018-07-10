@@ -135,6 +135,11 @@ struct lhrs_stats
 
   unsigned num_decomp_default = 0u;
   unsigned num_decomp_lut     = 0u;
+  
+  // The following 3 params were added;
+  unsigned qubits = 0u;
+  unsigned lone_qubits = 0u;
+  unsigned step_count = 0u;
 
   stg_map_esop_stats    map_esop_stats;
   stg_map_precomp_stats map_precomp_stats;

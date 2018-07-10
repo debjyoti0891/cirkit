@@ -111,7 +111,9 @@ public:
     std::vector<unsigned> clean_ancilla; /* number of clean ancillae */
     std::vector<unsigned> line_map;      /* the mapping of lines to qubits */
   };
-
+  unsigned qubits;
+  unsigned lone_qubits;
+  unsigned step_count;
   using step_vec = std::vector<step>;
 
 public:
@@ -119,6 +121,15 @@ public:
     : _gia( gia ), _additional_ancilla( additional_ancilla )
   {
   }
+  void set_pebble_stats(unsigned q, unsigned l, unsigned s)
+  {
+      qubits = q;
+      lone_qubits = l;
+      step_count = s;
+  }
+  unsigned get_qubits() const { return qubits;}
+  unsigned get_lone_qubits() const { return lone_qubits;}
+  unsigned get_step_count() const { return step_count;}
 
   virtual unsigned compute_steps() = 0;
   inline const step_vec& steps() const { return _steps; }
@@ -601,7 +612,7 @@ public:
         else
             bglOutput.push_back(vertexMap[out]);
     }
-      unsigned int reqQbits = 0;
+    unsigned int reqQbits = 0;
     int available=0; 
     int loneLutQubits = 0;
     LutGraph *lG;
@@ -615,21 +626,25 @@ public:
     }
     //delete lG;
     std::set<int> lutMapped;
+    int stepCount = 0;
     for(auto const step : lG->getPebbleSteps())
     {
         int index = newVertexMap[std::get<1>(step)];
         lutMapped.insert(index); 
+        stepCount++;
     }
     loneLutQubits = zeroFanInLut.size();
     
     //std::cout << "lone : " << loneLutQubits << "\n";
     loneLutQubits = available > loneLutQubits ? 0: loneLutQubits - available;
     std::ofstream debugStats ("debugStats.txt", std::ios::out|std::ios::app);
-    debugStats << "r:" << reqQbits << " l:" << loneLutQubits;
-    debugStats << " a:" << additional_ancilla() << "\n";
+    debugStats << "req:" << reqQbits << " lone:" << loneLutQubits;
+    debugStats << " total:" << reqQbits+loneLutQubits;
+    debugStats << " steps:"<< stepCount <<"\n";
     debugStats.close();
+    set_pebble_stats(reqQbits+loneLutQubits, loneLutQubits, stepCount);
     // NOTE : code for adding steps 
-  
+    /*
     add_default_input_steps();
     //  add the additional lines needed 
     add_constants(reqQbits+loneLutQubits+additional_ancilla());
@@ -658,7 +673,6 @@ public:
         std::cout << "virtual q:" << i << " mapped:" << my_qubit_their_qubit_map[i] << " "; 
         #endif 
      }
-  /*  allocate_steps(steps.size()); */
     for(auto const step : lG->getPebbleSteps())
     {
         int index = newVertexMap[std::get<1>(step)];
@@ -698,7 +712,7 @@ public:
     
     add_default_output_steps();
     std::cout << "Completed adding steps\n";
-   
+  */ 
     int neededLines = next_free();
     return_to_mem_point();
     //complete_add_step();
@@ -878,9 +892,12 @@ public:
     std::vector<std::string> outputs( lines, "0" );
     std::vector<constant> constants( lines, false );
     std::vector<bool> garbage( lines, true );
+    stats.qubits = order_heuristic->get_qubits();
+    stats.lone_qubits = order_heuristic->get_lone_qubits();
+    stats.step_count = order_heuristic->get_step_count();
 
     std::unordered_map<unsigned, lut_order_heuristic::step_type> orig_step_type; /* first step type of an output */
-
+    /*
     auto step_index = 0u;
     pbar.keep_last();
     for ( const auto& step : order_heuristic->steps() )
@@ -953,12 +970,12 @@ public:
         break;
       }
     }
-
+    */
     std::cout << "completed run()\n";
-    circ.set_inputs( inputs );
+    /*circ.set_inputs( inputs );
     circ.set_outputs( outputs );
     circ.set_constants( constants );
-    circ.set_garbage( garbage );
+    circ.set_garbage( garbage ); */
     //order_heuristic->free_steps();
     return true;
   }

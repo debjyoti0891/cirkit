@@ -1252,7 +1252,9 @@ void LutGraph::preprocess_pebble()
 #endif
 	for(auto output:po)
 	{
-		output_stats[output].resize(4);
+        for(int i=0;i<4;i++)
+            output_stats[output].push_back(0);
+		//output_stats[output].resize(4);
         //		bfs_queue.push(output);
         added = std::set<int>();
         bfs_prio.push(std::make_tuple(output, lutGraph[output].topoLabel));
@@ -1890,7 +1892,9 @@ void LutGraph::pebble()
 
 	std::cout<<"SIZ "<<po.size()<<" "<<output_prio.size()<<"\n";
 
-	qubits_bool.resize(qubits_available);
+    for(int i=0; i<qubits_available;i++)
+        qubits_bool.push_back(false);
+    //qubits_bool.resize(qubits_available);
 
 	outputs_comp_yet = 0;
 	qubits_used_yet = 0; // stores total qubits used

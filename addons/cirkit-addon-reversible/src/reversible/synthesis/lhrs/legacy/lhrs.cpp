@@ -642,9 +642,8 @@ public:
     debugStats << " total:" << reqQbits+loneLutQubits;
     debugStats << " steps:"<< stepCount <<"\n";
     debugStats.close();
-    set_pebble_stats(reqQbits+loneLutQubits, loneLutQubits, stepCount);
     // NOTE : code for adding steps 
-    /*
+    
     add_default_input_steps();
     //  add the additional lines needed 
     add_constants(reqQbits+loneLutQubits+additional_ancilla());
@@ -665,14 +664,15 @@ public:
             std::cout << "zero fan in steps" << lut << "\n";
         #endif
     }
-    for(uint i=1;i<= reqQbits;i++)
-     {
-     	my_qubit_their_qubit_map[i] = request_constant(); //my ith qbit maps to req_const()
-     	max_qubit = max_qubit < my_qubit_their_qubit_map[i] ? my_qubit_their_qubit_map[i] : max_qubit;
-        #ifdef ORDERING_DEBUG 
-        std::cout << "virtual q:" << i << " mapped:" << my_qubit_their_qubit_map[i] << " "; 
-        #endif 
-     }
+
+    //for(uint i=1;i<= reqQbits;i++)
+    // {
+    // 	my_qubit_their_qubit_map[i] = request_constant(); //my ith qbit maps to req_const()
+    // 	max_qubit = max_qubit < my_qubit_their_qubit_map[i] ? my_qubit_their_qubit_map[i] : max_qubit;
+    //    #ifdef ORDERING_DEBUG 
+    //    std::cout << "virtual q:" << i << " mapped:" << my_qubit_their_qubit_map[i] << " "; 
+    //    #endif 
+    // }
     for(auto const step : lG->getPebbleSteps())
     {
         int index = newVertexMap[std::get<1>(step)];
@@ -690,10 +690,11 @@ public:
 
         if(std::get<0>(step) == 0)
         {
-            int target =  my_qubit_their_qubit_map[std::get<2>(step)];//target is a new qubit
+            int target = request_constant(); // my_qubit_their_qubit_map[std::get<2>(step)];//target is a new qubit
             (*this)[index] = target;
             add_step(index, target, lut_order_heuristic::compute);   
             targetMap[index] = target;         
+     	    max_qubit = max_qubit < target ? target : max_qubit;
         }
         else if(std::get<0>(step) == 1)
         {
@@ -710,9 +711,10 @@ public:
     delete lG;
     std::cout<<"MAX_QUBITS REQD"<<max_qubit+1<<"\n";
     
+    set_pebble_stats(max_qubit+1, loneLutQubits, stepCount);
     add_default_output_steps();
     std::cout << "Completed adding steps\n";
-  */ 
+  
     int neededLines = next_free();
     return_to_mem_point();
     //complete_add_step();
@@ -897,7 +899,7 @@ public:
     stats.step_count = order_heuristic->get_step_count();
 
     std::unordered_map<unsigned, lut_order_heuristic::step_type> orig_step_type; /* first step type of an output */
-    /*
+    
     auto step_index = 0u;
     pbar.keep_last();
     for ( const auto& step : order_heuristic->steps() )
@@ -970,7 +972,7 @@ public:
         break;
       }
     }
-    */
+   
     std::cout << "completed run()\n";
     /*circ.set_inputs( inputs );
     circ.set_outputs( outputs );
